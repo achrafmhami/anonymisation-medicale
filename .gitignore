@@ -1,0 +1,28 @@
+# Dossiers de fichiers uploadés
+uploads/
+outputs/
+images/
+
+# Vidéos
+videos/
+*.mp4
+*.avi
+*.mov
+
+# Exécutables
+*.exe
+*.msi
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini

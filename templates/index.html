@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymisation Médicale</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>🏥 Anonymisation Médicale</h1>
+        <p>Anonymisez vos images et vidéos médicales facilement</p>
+    </div>
+
+    <!-- FORMULAIRE -->
+    <div class="card">
+        <h2>📤 Uploader un fichier</h2>
+
+        <div class="upload-zone" id="uploadZone">
+            <div class="upload-icon">📁</div>
+            <p>Glissez votre fichier ici ou cliquez pour choisir</p>
+            <small>Images : JPG, PNG | Vidéos : MP4, AVI, MOV</small>
+            <input type="file" id="fichier" accept=".jpg,.jpeg,.png,.mp4,.avi,.mov" hidden>
+        </div>
+
+        <div id="fichierNom" class="fichier-nom hidden"></div>
+
+        <div class="options">
+            <div class="option-group">
+                <label>🎨 Mode d'anonymisation :</label>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="mode" value="flou" checked>
+                        <span>🌫️ Flou Gaussien</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="mode" value="masque">
+                        <span>⬛ Masque Noir</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="option-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="verifier">
+                    <span> Vérifier l'anonymisation après traitement</span>
+                </label>
+            </div>
+        </div>
+
+        <button class="btn-primary" id="btnAnonymiser" disabled>
+             Anonymiser
+        </button>
+    </div>
+
+    <!-- CHARGEMENT -->
+    <div class="card hidden" id="loading">
+        <div class="spinner"></div>
+        <p>Traitement en cours... Veuillez patienter</p>
+    </div>
+
+    <!-- RÉSULTATS -->
+    <div class="card hidden" id="resultats">
+        <h2>✅ Résultats</h2>
+
+        <div class="stats" id="stats"></div>
+
+        <div class="comparaison" id="comparaison"></div>
+
+        <div class="verification" id="verification"></div>
+
+        <button class="btn-download hidden" id="btnDownload">
+            ⬇️ Télécharger le fichier anonymisé
+        </button>
+    </div>
+
+</div>
+
+<script>
+    const uploadZone = document.getElementById('uploadZone');
+    const fichierInput = document.getElementById('fichier');
+    const fichierNom = document.getElementById('fichierNom');
+    const btnAnonymiser = document.getElementById('btnAnonymiser');
+    const loading = document.getElementById('loading');
+    const resultats = document.getElementById('resultats');
+    const btnDownload = document.getElementById('btnDownload');
+
+    let fichierSelectionne = null;
+
+    // Clic sur la zone d'upload
+    uploadZone.addEventListener('click', () => fichierInput.click());
+
+    // Drag & Drop
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('drag-over');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('drag-over');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) selectionnerFichier(file);
+    });
+
+    fichierInput.addEventListener('change', () => {
+        if (fichierInput.files[0]) selectionnerFichier(fichierInput.files[0]);
+    });
+
+    function selectionnerFichier(file) {
+        fichierSelectionne = file;
+        fichierNom.textContent = `📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+        fichierNom.classList.remove('hidden');
+        btnAnonymiser.disabled = false;
+        uploadZone.classList.add('file-selected');
+    }
+
+    // Anonymisation
+    btnAnonymiser.addEventListener('click', async () => {
+        if (!fichierSelectionne) return;
+
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        const verifier = document.getElementById('verifier').checked;
+
+        const formData = new FormData();
+        formData.append('fichier', fichierSelectionne);
+        formData.append('mode', mode);
+        formData.append('verifier', verifier.toString());
+
+        // Afficher chargement
+        loading.classList.remove('hidden');
+        resultats.classList.add('hidden');
+        btnAnonymiser.disabled = true;
+
+        try {
+            const response = await fetch('/anonymiser', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            loading.classList.add('hidden');
+            btnAnonymiser.disabled = false;
+
+            if (data.erreur) {
+                alert('❌ Erreur : ' + data.erreur);
+                return;
+            }
+
+            afficherResultats(data);
+
+        } catch (err) {
+            loading.classList.add('hidden');
+            btnAnonymiser.disabled = false;
+            alert('❌ Erreur réseau : ' + err.message);
+        }
+    });
+
+    function afficherResultats(data) {
+        resultats.classList.remove('hidden');
+
+        // Stats
+        const stats = document.getElementById('stats');
+        if (data.type === 'image') {
+            stats.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-icon">👤</span>
+                    <span class="stat-value">${data.visages_detectes}</span>
+                    <span class="stat-label">Visages détectés</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">🎨</span>
+                    <span class="stat-value">${data.mode}</span>
+                    <span class="stat-label">Mode utilisé</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">⏱️</span>
+                    <span class="stat-value">${data.duree_secondes}s</span>
+                    <span class="stat-label">Durée</span>
+                </div>
+            `;
+        } else {
+            stats.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-icon">🎬</span>
+                    <span class="stat-value">${data.frames_traitees}</span>
+                    <span class="stat-label">Frames traitées</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">👤</span>
+                    <span class="stat-value">${data.visages_detectes_total}</span>
+                    <span class="stat-label">Visages détectés</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">⏱️</span>
+                    <span class="stat-value">${data.duree_secondes}s</span>
+                    <span class="stat-label">Durée</span>
+                </div>
+            `;
+        }
+
+        // Comparaison avant/après (images uniquement)
+        const comparaison = document.getElementById('comparaison');
+        if (data.type === 'image' && data.input_url && data.output_url) {
+            const outputApercu = data.output_url.replace('/telecharger/', '/apercu_output/');
+            comparaison.innerHTML = `
+                <h3>🖼️ Comparaison Avant / Après</h3>
+                <div class="images-grid">
+                    <div class="image-box">
+                        <p>Avant</p>
+                        <img src="${data.input_url}" alt="Avant anonymisation">
+                    </div>
+                    <div class="image-box">
+                        <p>Après</p>
+                        <img src="${outputApercu}" alt="Après anonymisation">
+                    </div>
+                </div>
+            `;
+        } else {
+            comparaison.innerHTML = '';
+        }
+
+        // Vérification
+        const verification = document.getElementById('verification');
+        if (data.verification) {
+            const v = data.verification;
+            const succes = v.anonymisation_reussie;
+            verification.innerHTML = `
+                <div class="verif-box ${succes ? 'succes' : 'echec'}">
+                    <span>${succes ? '✅' : '⚠️'}</span>
+                    <strong>${succes ? 'Anonymisation réussie !' : 'Attention : des visages sont encore détectés'}</strong>
+                    <span>Visages restants : ${v.visages_restants}</span>
+                </div>
+            `;
+        } else {
+            verification.innerHTML = '';
+        }
+
+        // Bouton téléchargement
+        const outputFilename = data.output_url.split('/').pop();
+        btnDownload.classList.remove('hidden');
+        btnDownload.onclick = () => window.location.href = data.output_url;
+    }
+</script>
+
+</body>
+</html>
